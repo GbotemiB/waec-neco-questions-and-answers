@@ -6,12 +6,12 @@ from PIL import Image
 
 # Define CSV files and image folders for different languages
 CSV_FILES = {
-    "Yoruba": "2010/2010.csv",  # Change to actual file paths
-    "Igbo": "2011/2011.csv"  # Change to actual file paths
+    "Yoruba": "data/YOR/2010/2010.csv",  # Change to actual file paths
+    "Igbo": "data/igbo_questions/IGBO.csv"  # Change to actual file paths
 }
 IMAGE_FOLDERS = {
     "Yoruba": "2010/",  # Change to actual folder paths
-    "Igbo": "2011/"  # Change to actual folder paths
+    "Igbo": "data/igbo_questions"  # Change to actual folder paths
 }
 
 # Initialize session state for user details, language selection, questions, and answers
@@ -57,7 +57,7 @@ if not st.session_state.remaining_indices and "current_index" not in st.session_
 
 # Get current question details
 current_row = data.iloc[st.session_state.current_index]
-image_path = os.path.join(image_folder, current_row["image_id"])
+image_path = os.path.join(image_folder, current_row["data_path"])
 
 # Display the question image
 st.title(f"{st.session_state.language} Quiz for {st.session_state.username}")
