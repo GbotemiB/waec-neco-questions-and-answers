@@ -7,15 +7,22 @@ from PIL import Image
 
 # Define CSV files and image folders for different languages
 CSV_FILES = {
-    "Yoruba": "data/YOR/2010/2010.csv",  # Change to actual file paths
-    "Igbo": "data/igbo_questions/IGBO.csv"  # Change to actual file paths
+    "Yoruba": "data/YOR/2010/2010.csv",  
+    "Igbo": "data/igbo_questions/IGBO.csv"
 }
 IMAGE_FOLDERS = {
-    "Yoruba": "2010/",  # Change to actual folder paths
-    "Igbo": "data/igbo_questions"  # Change to actual folder paths
+    "Yoruba": "2010/",  
+    "Igbo": "data/igbo_questions"
 }
+RESPONSES_FILE = "responses.csv"  # File to store user responses
 
-# Initialize session state for user details, language selection, questions, and answers
+# Load previous responses if they exist
+if os.path.exists(RESPONSES_FILE):
+    responses_df = pd.read_csv(RESPONSES_FILE)
+else:
+    responses_df = pd.DataFrame(columns=["username", "language", "image_id", "user_answer"])
+
+# Initialize session state for user details, language selection, and progress
 if "username" not in st.session_state:
     st.session_state.username = None
 if "language" not in st.session_state:
@@ -28,35 +35,38 @@ if "remaining_indices" not in st.session_state:
 # First page to collect username and language choice
 if st.session_state.username is None or st.session_state.language is None:
     st.title("Welcome to the Quiz!")
-    username = st.text_input("Enter your name to start:")
-    language = st.selectbox("Select a language:", [
-                            "Yoruba", "Igbo"], index=None, placeholder="Choose...")
+    username = st.text_input("Enter your name to start or resume:")
+    language = st.selectbox("Select a language:", ["Yoruba", "Igbo"], index=None, placeholder="Choose...")
 
     if st.button("Start Quiz") and username and language:
         st.session_state.username = username
         st.session_state.language = language
         data = pd.read_csv(CSV_FILES[language])
-        st.session_state.data = data  # Store the selected dataset in session state
-        # Store the selected image folder
+        st.session_state.data = data  
         st.session_state.image_folder = IMAGE_FOLDERS[language]
-        st.session_state.remaining_indices = list(range(len(data)))
+
+        # Filter out already answered questions
+        answered_questions = responses_df[(responses_df["username"] == username) & (responses_df["language"] == language)]["image_id"].tolist()
+        st.session_state.remaining_indices = [i for i in range(len(data)) if data.iloc[i]["image_id"] not in answered_questions]
+
         random.shuffle(st.session_state.remaining_indices)
-        st.session_state.current_index = st.session_state.remaining_indices.pop()
+
+        # Resume or start fresh
+        if st.session_state.remaining_indices:
+            st.session_state.current_index = st.session_state.remaining_indices.pop()
+        else:
+            st.session_state.current_index = None
+
         st.rerun()
     st.stop()
 
-# Load the selected language dataset and image folder
+# Load selected dataset and image folder
 data = st.session_state.data
 image_folder = st.session_state.image_folder
 
 # Check if all questions have been answered
-if not st.session_state.remaining_indices and "current_index" not in st.session_state:
-    st.write(
-        f"Thank you for participating, {st.session_state.username}! Goodbye! 👋")
-    # Convert user answers to a DataFrame and display it
-    answers_df = pd.DataFrame(st.session_state.user_answers)
-    st.write("Your responses:")
-    st.dataframe(answers_df)
+if not st.session_state.remaining_indices and st.session_state.current_index is None:
+    st.write(f"Thank you for participating, {st.session_state.username}! Goodbye! 👋")
     st.stop()
 
 # Get current question details
@@ -69,52 +79,41 @@ st.image(Image.open(image_path), use_container_width=True)
 
 # Answer choices
 options = ["A", "B", "C", "D"]
-user_choice = st.radio("Select an answer:", options,
-                       key=st.session_state.current_index)
+user_choice = st.radio("Select an answer:", options, key=st.session_state.current_index)
 
-
-# Buttons to submit answer or skip
+# Buttons for submitting or skipping
 col1, col2 = st.columns(2)
+
+def save_response(answer):
+    """Save user response to the CSV file."""
+    global responses_df
+    new_row = pd.DataFrame([{
+        "username": st.session_state.username,
+        "language": st.session_state.language,
+        "image_id": current_row["image_id"],
+        "user_answer": answer
+    }])
+    responses_df = pd.concat([responses_df, new_row], ignore_index=True)
+    responses_df.to_csv(RESPONSES_FILE, index=False)
+
 with col1:
     if st.button("Next Question"):
-        # Store user response
-        st.session_state.user_answers.append({
-            "username": st.session_state.username,
-            "language": st.session_state.language,
-            "image_id": current_row["image_id"],
-            "user_answer": user_choice
-        })
-
+        save_response(user_choice)
         if st.session_state.remaining_indices:
             st.session_state.current_index = st.session_state.remaining_indices.pop()
             st.rerun()
         else:
-            del st.session_state.current_index  # Remove current question to stop rerunning
-            st.write(
-                f"Thank you for participating, {st.session_state.username}! Goodbye! 👋")
-            answers_df = pd.DataFrame(st.session_state.user_answers)
-            st.write("Your responses:")
-            st.dataframe(answers_df)
+            st.session_state.current_index = None
+            st.write(f"Thank you for participating, {st.session_state.username}! Goodbye! 👋")
             st.stop()
 
 with col2:
     if st.button("Skip Question"):
-        # Store skipped response as NaN
-        st.session_state.user_answers.append({
-            "username": st.session_state.username,
-            "language": st.session_state.language,
-            "image_id": current_row["image_id"],
-            "user_answer": np.nan
-        })
-
+        save_response(np.nan)
         if st.session_state.remaining_indices:
             st.session_state.current_index = st.session_state.remaining_indices.pop()
             st.rerun()
         else:
-            del st.session_state.current_index  # Remove current question to stop rerunning
-            st.write(
-                f"Thank you for participating, {st.session_state.username}! Goodbye! 👋")
-            answers_df = pd.DataFrame(st.session_state.user_answers)
-            st.write("Your responses:")
-            st.dataframe(answers_df)
+            st.session_state.current_index = None
+            st.write(f"Thank you for participating, {st.session_state.username}! Goodbye! 👋")
             st.stop()
