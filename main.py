@@ -87,7 +87,7 @@ st.title(f"{st.session_state.language} Quiz for {st.session_state.username}")
 st.image(Image.open(image_path), use_container_width=True)
 
 # Answer choices
-options = ["A", "B", "C", "D"]
+options = ["A", "B", "C", "D", "E"]
 user_choice = st.radio("Select an answer:", options, key=st.session_state.current_index)
 
 # Buttons to submit or skip
